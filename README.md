@@ -69,17 +69,61 @@ the `IDRS_` prefix, e.g. `IDRS_START_NODE=3 python Main.py`. See
 
 ---
 
+## Running Tests
+
+Install dev dependencies, then run pytest from the repo root:
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest
+```
+
+The suite covers `app/`'s unit behavior (`tests/unit/`), end-to-end scenarios
+against the real network with pinned golden values (`tests/integration/`),
+and two Hypothesis property tests (`tests/property/`) checking that A* and
+UCS always agree on path cost and that the A* heuristic never overestimates
+the true cost, across randomized speed maps and start/goal pairs.
+
+---
+
+## Benchmark
+
+`benchmarks/run_benchmark.py` measures how much less search effort A* needs
+than UCS, properly: every ordered origin-destination pair among the 21 nodes
+(420 pairs, since search effort isn't symmetric even though path cost is)
+crossed with 4 speed profiles (a flat 100 km/h baseline plus FIS-derived
+speeds at each of the three fragility levels), for 1680 measured comparisons
+instead of a single hand-picked pair.
+
+```bash
+python -m benchmarks.run_benchmark
+```
+
+It prints a statistical report (mean/median/stdev/min/max/95% CI of the
+node-expansion reduction, per profile and combined) and writes the raw
+per-pair results plus a summary to timestamped CSV/JSON files under
+`benchmarks/results/` (gitignored, regenerated each run).
+
+Measured result: A* expands **54.2% fewer nodes than UCS on average**
+(median 58.3%, 95% CI [53.3%, 55.2%], n=1680) across all pairs and profiles.
+The originally-cited single-pair figure of 36.8% (Hoppers Crossing to
+Ferntree Gully, flat speed) turns out to rank 370th out of 420 pairs in its
+own profile, meaning it understated A*'s typical advantage rather than
+cherry-picking a favorable case.
+
+---
+
 ## Expected Output
 
 Running the script produces the following outputs in order:
 
-### 1. Task 1 – Baseline A* Planner (printed to console)
+### 1. Baseline A* Planner (printed to console)
 
 ```
 =================================================================
-TASK 1 — BASELINE TIME-BASED A* PLANNER
+BASELINE TIME-BASED A* PLANNER
 =================================================================
-  Route : Hoppers Crossing → Ferntree Gully
+  Route : Hoppers Crossing -> Ferntree Gully
   Speed : 100 km/h (constant, no FIS)
 
   Admissibility check (h = Haversine / max_speed ≤ h*):
@@ -87,37 +131,37 @@ TASK 1 — BASELINE TIME-BASED A* PLANNER
 
   Algorithm            Path cost (h)    Nodes exp.   Time (ms)
   ------------------------------------------------------------
-  UCS (baseline)       0.6011           ...          ...
-  A* (Haversine)       0.6011           ...          ...
+  UCS (baseline)       0.6011           19           ...
+  A* (Haversine)       0.6011           12           ...
 
   Optimal path (36.1 min):
     Hoppers Crossing -> Truganina -> Sunshine -> ...-> Ferntree Gully
 ```
 
-### 2. Task 1 – Visualisation Window (matplotlib pop-up)
+### 2. Baseline Route Visualisation (matplotlib pop-up)
 
 - **Route map** showing the optimal A* baseline path overlaid on the Melbourne
   delivery environment (21 nodes, 36 road segments).
 
-### 3. Task 2 – FIS Membership Function Plots (matplotlib pop-up)
+### 3. FIS Membership Function Plots (matplotlib pop-up)
 
 - Three-panel figure showing triangular membership functions for:
   - **Fragility** (Robust / Moderate / Fragile) with overlap shading and worked-example input marker
   - **Bumpiness** (Smooth / Moderate / Rough) with overlap shading and worked-example input marker
   - **Max Safe Speed** (Slow / Medium / Fast) with overlap shading
 
-### 4. Task 2 – Worked Example (printed to console + matplotlib pop-up)
+### 4. Worked Example (printed to console + matplotlib pop-up)
 
 ```
 =================================================================
-TASK 2 — WORKED EXAMPLE
+WORKED EXAMPLE
 =================================================================
-  Cargo fragility : 5.0  ->  μ_Moderate = 1.000
+  Cargo fragility : 5.0  ->  μ_Moderate = 0.998
   Road bumpiness  : 7.0  ->  μ_Moderate = 0.333, μ_Rough = 0.250
 
   Active rules (partial activation = genuine ambiguity):
-    Rule 5  Moderate & Moderate -> Medium : min(1.000, 0.333) = 0.333
-    Rule 6  Moderate & Rough   -> Slow   : min(1.000, 0.250) = 0.250
+    Rule 5  Moderate & Moderate -> Medium : min(0.998, 0.333) = 0.333
+    Rule 6  Moderate & Rough   -> Slow   : min(0.998, 0.250) = 0.250
 
   Defuzzification (centroid) -> Max Safe Speed = 67.20 km/h
 =================================================================
@@ -125,37 +169,37 @@ TASK 2 — WORKED EXAMPLE
 
 - **Defuzzification plot** showing aggregated output MF region and centroid value.
 
-### 5. Task 2 – FIS Control Surface (matplotlib pop-up)
+### 5. FIS Control Surface (matplotlib pop-up)
 
 - **3D surface plot** of Max Safe Speed across the full Fragility × Bumpiness input space.
-- **2D contour map** with Task 3 fragility-level markers (F = 2, 5, 8) overlaid.
+- **2D contour map** with the demo's fragility-level markers (F = 2, 5, 8) overlaid.
 
-### 6. Task 3 – Integration Comparison Table (printed to console)
+### 6. Integration Comparison Table (printed to console)
 
 ```
 =================================================================
-TASK 3 — INTEGRATION AND COMPARISON
+INTEGRATION AND COMPARISON
 =================================================================
-  Route  : Hoppers Crossing → Ferntree Gully
+  Route  : Hoppers Crossing -> Ferntree Gully
   Constraint fraction : 60% of edges capped at 40 km/h  (seed=42)
   22 of 36 edges constrained
 
-  Fragility   Level   Scenario               Time (h)    Time (min)   Nodes exp.
+  Fragility  Level   Scenario                    Time (h)   Time (min)  Nodes exp.
   ------------------------------------------------------------------------------
-  2           Low     A — No constraint      ...         ...          ...
-  2           Low     B — 60% constrained    ...         ...          ...
-  2           Low     C — Replan @...        ...         ...          ...
+  2          Low     A - No constraint           0.7042     42.25       12
+  2          Low     B - Replan at Truganina     1.0896     65.37       29
+  2          Low     C - 60% constrained         1.1673     70.04       17
   ...
 ```
 
-### 7. Task 3 – Route Maps (matplotlib pop-ups, one per fragility level)
+### 7. Route Maps (matplotlib pop-ups, one per fragility level)
 
 - **Side-by-side map** for each fragility level (Low / Medium / High):
   - Left panel: Scenario A (FIS speeds, no constraints)
   - Right panel: Scenario B (60 % edges capped at 40 km/h)
   - Constrained edges shown in red dashed; optimal path highlighted in orange.
 
-### 8. Task 3 – Comparison Bar Chart (matplotlib pop-up)
+### 8. Comparison Bar Chart (matplotlib pop-up)
 
 - Two-panel bar chart comparing all three scenarios (A / B / C) across all three
   fragility levels on:
@@ -189,8 +233,8 @@ app/
 
 scripts/
   plotting.py                     all matplotlib functions (route maps, MF plots, control surface, ...)
-  run_demo.py                       orchestrates Task 1 (baseline A*/UCS), Task 2 (FIS demo),
-                                     Task 3 (integration: constraint scenarios + replanning), see main()
+  run_demo.py                       orchestrates the baseline A*/UCS comparison, the FIS demo, and the
+                                     constraint/replanning integration comparison, see main()
 
 Main.py                          thin compatibility shim: `python Main.py` calls scripts.run_demo.main()
 requirements.txt                 pinned dependency manifest
@@ -202,9 +246,9 @@ settings = get_settings()
 network  = RoadNetwork.from_json(settings.network_data_path)
 fis      = FuzzySpeedController()
 service  = RoutingService(network, fis, settings)
-# Task 1: service.astar_time(), service.ucs_time(), plot_task1_route()
-# Task 2: plot_membership_functions(), explain_worked_example(), plot_worked_example(), plot_control_surface()
-# Task 3: service.compute_segment_speeds(), service.simulate_replanning(), plot_task3_comparison()
+# Baseline planner: service.astar_time(), service.ucs_time(), plot_baseline_route()
+# Fuzzy demo: plot_membership_functions(), explain_worked_example(), plot_worked_example(), plot_control_surface()
+# Integration comparison: service.compute_segment_speeds(), service.simulate_replanning(), plot_scenario_comparison()
 ```
 
 ---
@@ -274,7 +318,7 @@ python --version
   deliberately produces distinct outputs from both the Robust and Fragile rows.
 - Defuzzification method: centroid.
 
-### Task 3 Constraints
+### Constraints and Replanning
 - **60 % of edges** are capped at 40 km/h using `random.seed(42)` for reproducibility.
 - This seed is fixed and reused consistently across all three fragility levels.
 - **Replanning** is triggered after `ceil(0.20 × path_length)` nodes are visited; the

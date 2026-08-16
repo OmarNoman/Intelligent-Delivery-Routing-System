@@ -19,11 +19,11 @@ from app.routing.heuristics import haversine_time_heuristic
 from app.services.routing_service import RoutingService
 from scripts.plotting import (
     path_label,
+    plot_baseline_route,
     plot_control_surface,
     plot_membership_functions,
     plot_route_map,
-    plot_task1_route,
-    plot_task3_comparison,
+    plot_scenario_comparison,
     plot_worked_example,
 )
 
@@ -34,16 +34,16 @@ def main() -> None:
     controller = FuzzySpeedController()
     service = RoutingService(network, controller, settings)
 
-    _run_task1(network, service, settings)
-    _run_task2(controller)
-    _run_task3(network, service, settings)
+    _run_baseline_planner(network, service, settings)
+    _run_fuzzy_demo(controller)
+    _run_integration_comparison(network, service, settings)
 
     print("\nComplete")
 
 
-def _run_task1(network: RoadNetwork, service: RoutingService, settings) -> None:
+def _run_baseline_planner(network: RoadNetwork, service: RoutingService, settings) -> None:
     print("\n" + "=" * 65)
-    print("TASK 1 - BASELINE TIME-BASED A* PLANNER")
+    print("BASELINE TIME-BASED A* PLANNER")
     print("=" * 65)
     baseline_speeds = {frozenset(e): settings.baseline_speed for e in network.get_all_edges()}
 
@@ -82,12 +82,12 @@ def _run_task1(network: RoadNetwork, service: RoutingService, settings) -> None:
     print("\n  A* Search Trace:")
     service.astar_time(settings.start_node, settings.goal_node, baseline_speeds, settings.baseline_speed,
                         print_trace=True)
-    plot_task1_route(network, ast_path, ast_cost, settings.start_node, settings.goal_node)
+    plot_baseline_route(network, ast_path, ast_cost, settings.start_node, settings.goal_node)
 
 
-def _run_task2(controller: FuzzySpeedController) -> None:
+def _run_fuzzy_demo(controller: FuzzySpeedController) -> None:
     print("\n" + "=" * 65)
-    print("TASK 2 - FUZZY INFERENCE SYSTEM")
+    print("FUZZY INFERENCE SYSTEM")
     print("=" * 65)
 
     print("  Inputs : Fragility [0–10], Bumpiness [0–10]")
@@ -99,7 +99,7 @@ def _run_task2(controller: FuzzySpeedController) -> None:
 
     result = explain_worked_example(controller, fragility_val=5.0, bumpiness_val=7.0)
     print("\n" + "=" * 65)
-    print("TASK 2 - WORKED EXAMPLE")
+    print("WORKED EXAMPLE")
     print("=" * 65)
     print(f"  Cargo fragility : {result.fragility_val:.1f}  ->  μ_Moderate = {result.mu_frag_moderate:.3f}")
     print(f"  Road bumpiness  : {result.bumpiness_val:.1f}  ->  μ_Moderate = {result.mu_bump_moderate:.3f}, "
@@ -119,9 +119,9 @@ def _run_task2(controller: FuzzySpeedController) -> None:
     plot_control_surface(controller)
 
 
-def _run_task3(network: RoadNetwork, service: RoutingService, settings) -> None:
+def _run_integration_comparison(network: RoadNetwork, service: RoutingService, settings) -> None:
     print("\n" + "=" * 65)
-    print("TASK 3 - INTEGRATION AND COMPARISON")
+    print("INTEGRATION AND COMPARISON")
     print("=" * 65)
     all_edges = network.get_all_edges()
     random.seed(settings.constraint_seed)
@@ -133,7 +133,7 @@ def _run_task3(network: RoadNetwork, service: RoutingService, settings) -> None:
         f"{settings.constraint_speed:.0f} km/h  (seed={settings.constraint_seed})")
     print(f"  {len(constrained_edges)} of {len(all_edges)} edges constrained\n")
 
-    task3_results = []
+    comparison_results = []
     print(f"  {'Fragility':<11}{'Level':<8}{'Scenario':<28}{'Time (h)':<11}{'Time (min)':<12}{'Nodes exp.'}")
     print("  " + "-" * 78)
 
@@ -158,20 +158,20 @@ def _run_task3(network: RoadNetwork, service: RoutingService, settings) -> None:
         ]
 
         for sc, path, t_h, exp in scenarios:
-            task3_results.append(
+            comparison_results.append(
                 {"fragility": frag, "level": frag_label, "scenario": sc, "path": path, "time_h": t_h,
                  "nodes_exp": exp})
             print(f"  {frag:<11}{frag_label:<8}{sc:<28}{t_h:<11.4f}{t_h * 60:<12.2f}{exp}")
         print("  " + "-" * 70)
 
     print("\n  Path details:")
-    for r in task3_results:
+    for r in comparison_results:
         print(f"    [{r['level']} F={r['fragility']}, {r['scenario'][:18]}]")
         print(f"      {path_label(network, r['path'])}")
 
     for frag in settings.fragility_levels:
-        plot_route_map(network, task3_results, frag, constrained_edges, settings.start_node, settings.goal_node)
-    plot_task3_comparison(task3_results, settings.fragility_levels)
+        plot_route_map(network, comparison_results, frag, constrained_edges, settings.start_node, settings.goal_node)
+    plot_scenario_comparison(comparison_results, settings.fragility_levels)
 
 
 if __name__ == "__main__":

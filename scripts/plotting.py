@@ -64,9 +64,9 @@ def _draw_map_on_ax(ax, network: RoadNetwork, path: list, constrained_edges: set
     ax.legend(handles=legend, fontsize=7, loc="lower right")
 
 
-def plot_task1_route(network: RoadNetwork, path: list, time_h: float, start_node: int, goal_node: int) -> None:
+def plot_baseline_route(network: RoadNetwork, path: list, time_h: float, start_node: int, goal_node: int) -> None:
     fig, ax = plt.subplots(figsize=(10, 7))
-    fig.suptitle("Task 1 - Baseline A* Route (100 km/h constant speed)", fontsize=13, fontweight="bold")
+    fig.suptitle("Baseline A* Route (100 km/h constant speed)", fontsize=13, fontweight="bold")
     _draw_map_on_ax(ax, network, path, set(),
                      f"{network.nodes[start_node].name} -> {network.nodes[goal_node].name}  |  {time_h * 60:.1f} min",
                      start_node, goal_node)
@@ -78,7 +78,7 @@ def plot_route_map(network: RoadNetwork, results: list, fragility: int, constrai
                     start_node: int, goal_node: int) -> None:
     frag_lbl = CargoProfile.from_fragility(fragility).label
     fig, axes = plt.subplots(1, 2, figsize=(14, 7))
-    fig.suptitle(f"Task 3 - Route Map  (Fragility = {fragility}, {frag_lbl})", fontsize=14, fontweight="bold")
+    fig.suptitle(f"Route Map  (Fragility = {fragility}, {frag_lbl})", fontsize=14, fontweight="bold")
 
     for ax, sc_prefix in zip(axes, ["A -", "B -"]):
         row = next((r for r in results if r["fragility"] == fragility and r["scenario"].startswith(sc_prefix)), None)
@@ -92,13 +92,13 @@ def plot_route_map(network: RoadNetwork, results: list, fragility: int, constrai
     plt.show()
 
 
-def plot_task3_comparison(results: list, fragility_levels: list) -> None:
+def plot_scenario_comparison(results: list, fragility_levels: list) -> None:
     scenarios = ["A - No constraint", "B - Replan", "C - 60% constrained"]
     colors = ["#2ECC71", "#3498DB", "#E74C3C"]
     frag_label = {2: "Low (F=2)", 5: "Med (F=5)", 8: "High (F=8)"}
 
     fig, axes = plt.subplots(1, 2, figsize=(14, 6))
-    fig.suptitle("Task 3 - Algorithm Comparison Across Fragility Levels", fontsize=13, fontweight="bold")
+    fig.suptitle("Algorithm Comparison Across Fragility Levels", fontsize=13, fontweight="bold")
     x = np.arange(len(fragility_levels))
     w = 0.25
     x_lbl = [frag_label[f] for f in fragility_levels]
@@ -131,7 +131,7 @@ def plot_task3_comparison(results: list, fragility_levels: list) -> None:
 
 def plot_membership_functions() -> None:
     fig, axes = plt.subplots(1, 3, figsize=(15, 5))
-    fig.suptitle("Task 2 - Fuzzy Membership Functions", fontsize=14, fontweight="bold")
+    fig.suptitle("Fuzzy Membership Functions", fontsize=14, fontweight="bold")
 
     # Fragility
     ax = axes[0]
@@ -195,7 +195,7 @@ def plot_control_surface(controller: FuzzySpeedController) -> None:
     F, B = np.meshgrid(f_vals, b_vals)
 
     fig = plt.figure(figsize=(8, 6))
-    fig.suptitle("Task 2 - FIS Control Surface", fontsize=13, fontweight="bold")
+    fig.suptitle("FIS Control Surface", fontsize=13, fontweight="bold")
     ax2 = fig.add_subplot(111)
     cp = ax2.contourf(F, B, Z.T, levels=20, cmap="RdYlGn")
     ax2.contour(F, B, Z.T, levels=10, colors="k", linewidths=0.4, alpha=0.4)
@@ -206,7 +206,7 @@ def plot_control_surface(controller: FuzzySpeedController) -> None:
                            (8, "High (F=8)", "red")]:
         ax2.axvline(fval, color=col, lw=1.8, ls="--", label=lbl)
 
-    ax2.legend(fontsize=8, loc="lower right", title="Task 3 levels")
+    ax2.legend(fontsize=8, loc="lower right", title="Fragility levels")
     ax2.set_xlabel("Fragility")
     ax2.set_ylabel("Bumpiness")
     ax2.set_title("2D Contour Map")
