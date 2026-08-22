@@ -1,7 +1,7 @@
 from app.config import Settings
 from app.fuzzy.controller import FuzzySpeedController
 from app.models.network import RoadNetwork
-from app.routing.planning import apply_constraints, path_time
+from app.routing.planning import apply_constraints, path_distance_km, path_time, sample_constrained_edges
 from app.routing.replanning import simulate_replanning
 from app.routing.search import astar_time, ucs_time
 
@@ -26,8 +26,18 @@ class RoutingService:
     def apply_constraints(self, segment_speeds: dict, constrained_edges: set) -> dict:
         return apply_constraints(segment_speeds, constrained_edges, self.settings.constraint_speed)
 
+    def sample_constrained_edges(self, fraction: float | None = None, seed: int | None = None) -> set:
+        return sample_constrained_edges(
+            self.network,
+            self.settings.constraint_fraction if fraction is None else fraction,
+            self.settings.constraint_seed if seed is None else seed,
+        )
+
     def path_time(self, path: list, speeds: dict) -> float:
         return path_time(self.network, path, speeds, self.settings.baseline_speed)
+
+    def path_distance_km(self, path: list) -> float:
+        return path_distance_km(self.network, path)
 
     def astar_time(self, start: int, goal: int, segment_speeds: dict, max_speed_ref: float,
                     print_trace: bool = False) -> tuple:

@@ -32,6 +32,8 @@ pip install -r requirements.txt
 | `networkx` | ≥ 2.6.0 | Required by scikit-fuzzy control system internals |
 | `scikit-fuzzy` | ≥ 0.4.2 | Fuzzy membership functions, rule base, and defuzzification |
 | `pydantic-settings` | ≥ 2.0.0 | Config layer (`app/config.py`), env/`.env`-overridable settings |
+| `fastapi` | ≥ 0.110.0 | HTTP API (`app/api/`) exposing routing, replanning, and explainability |
+| `uvicorn` | ≥ 0.29.0 | ASGI server used to run the FastAPI app |
 | `heapq` | stdlib | Priority queue for A* and UCS frontiers |
 | `math` | stdlib | `ceil()` for replanning trigger calculation |
 | `random` | stdlib | Reproducible constrained edge selection (seed = 42) |
@@ -80,9 +82,10 @@ python -m pytest
 
 The suite covers `app/`'s unit behavior (`tests/unit/`), end-to-end scenarios
 against the real network with pinned golden values (`tests/integration/`),
-and two Hypothesis property tests (`tests/property/`) checking that A* and
+two Hypothesis property tests (`tests/property/`) checking that A* and
 UCS always agree on path cost and that the A* heuristic never overestimates
-the true cost, across randomized speed maps and start/goal pairs.
+the true cost across randomized speed maps and start/goal pairs, and the
+FastAPI HTTP layer itself (`tests/api/`) via `fastapi.testclient.TestClient`.
 
 ---
 
@@ -110,6 +113,47 @@ The originally-cited single-pair figure of 36.8% (Hoppers Crossing to
 Ferntree Gully, flat speed) turns out to rank 370th out of 420 pairs in its
 own profile, meaning it understated A*'s typical advantage rather than
 cherry-picking a favorable case.
+
+---
+
+## API
+
+`app/api/main.py` exposes the routing service, fuzzy speed controller, and replanning
+logic over HTTP with FastAPI. Run it from the repo root:
+
+```bash
+uvicorn app.api.main:app --reload
+```
+
+Interactive Swagger docs are then available at `http://127.0.0.1:8000/docs` (and ReDoc at
+`/redoc`) — every endpoint below can be tried directly from the browser, with example
+request/response schemas generated from the Pydantic models in `app/models/schemas.py`.
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /health` | Liveness check; returns node/edge counts from the loaded network. |
+| `GET /network` | All 21 nodes and 36 edges (coordinates, names, bumpiness, blocked flag) — for rendering a map. |
+| `POST /routes/plan` | Runs A* or UCS between two nodes. `fragility` (omit for a flat baseline speed, or 0-10 for FIS-derived speeds), `algorithm` (`astar`/`ucs`), and `constrained` (apply the 60% edge speed cap) are all optional. |
+| `POST /routes/reroute` | Runs the full plan -> checkpoint -> replan scenario (`simulate_replanning`) for a given `fragility`, with an optional `constraint_fraction` override. |
+| `POST /explain` | General fuzzy inference trace for arbitrary `fragility`/`bumpiness` (0-10 each): membership degrees for all 3 terms per input, every rule that actually fired with its strength, and the defuzzified crisp speed. |
+
+The `FuzzySpeedController` (which builds a skfuzzy `ControlSystem`) and the `RoadNetwork`
+are constructed once at startup via a FastAPI `lifespan` handler, not per request.
+
+Example calls:
+
+```bash
+curl -X POST http://127.0.0.1:8000/routes/plan \
+  -H "Content-Type: application/json" \
+  -d '{"start": 20, "goal": 17, "fragility": 5}'
+
+curl -X POST http://127.0.0.1:8000/explain \
+  -H "Content-Type: application/json" \
+  -d '{"fragility": 5, "bumpiness": 7}'
+```
+
+Node ids that don't exist in the network return `404`; out-of-range `fragility`/`bumpiness`
+values (outside `[0, 10]`) return `422` via automatic Pydantic validation.
 
 ---
 
@@ -218,18 +262,23 @@ app/
   models/
     network.py                    Node, Edge, RoadNetwork (graph build/load/query, haversine)
     cargo.py                       CargoProfile (fragility value + label)
+    schemas.py                     Pydantic request/response DTOs for the FastAPI layer
   fuzzy/
     membership.py                  MF universes + triangular MF params, single source of truth
     rules.py                        the 9-rule table as data, plus a builder for skfuzzy Rules
     controller.py                   FuzzySpeedController: builds the skfuzzy ControlSystem, get_safe_speed()
-    explainability.py               pure worked-example trace computation (no print/plot side effects)
+    explainability.py               pure worked-example + general fuzzy-trace computation (no print/plot side effects)
   routing/
     heuristics.py                   haversine_time_heuristic (admissible A* heuristic)
     search.py                        astar_time, ucs_time
-    planning.py                       apply_constraints, path_time
+    planning.py                       apply_constraints, path_time, path_distance_km, sample_constrained_edges
     replanning.py                     simulate_replanning (deterministic checkpoint replan)
   services/
     routing_service.py             RoutingService facade composing network + FIS + routing + config
+  api/
+    main.py                        FastAPI app, lifespan-managed network/FIS/service singletons, CORS
+    dependencies.py                 Depends()-based accessors into app.state
+    routers/                        health.py, network.py, routes.py, explain.py
 
 scripts/
   plotting.py                     all matplotlib functions (route maps, MF plots, control surface, ...)

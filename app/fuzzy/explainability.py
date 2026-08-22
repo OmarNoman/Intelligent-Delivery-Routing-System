@@ -4,7 +4,16 @@ import numpy as np
 import skfuzzy as fuzz
 
 from app.fuzzy.controller import FuzzySpeedController
-from app.fuzzy.membership import BUMPINESS_UNIVERSE, FRAGILITY_UNIVERSE, bumpiness_mf, fragility_mf, speed_mf
+from app.fuzzy.membership import (
+    BUMPINESS_MFS,
+    BUMPINESS_UNIVERSE,
+    FRAGILITY_MFS,
+    FRAGILITY_UNIVERSE,
+    bumpiness_mf,
+    fragility_mf,
+    speed_mf,
+)
+from app.fuzzy.rules import RULES
 
 
 @dataclass(frozen=True)
@@ -45,4 +54,54 @@ def explain_worked_example(
         rule6_strength=r6_strength,
         crisp_speed=crisp_speed,
         aggregated_curve=agg,
+    )
+
+
+@dataclass(frozen=True)
+class FiredRule:
+    rule_index: int  # 1-based, matches the RULES table order
+    fragility_term: str
+    bumpiness_term: str
+    speed_term: str
+    strength: float
+
+
+@dataclass(frozen=True)
+class InferenceExplanation:
+    fragility_val: float
+    bumpiness_val: float
+    fragility_memberships: dict[str, float]
+    bumpiness_memberships: dict[str, float]
+    fired_rules: list[FiredRule]
+    crisp_speed: float
+
+
+def explain_inference(controller: FuzzySpeedController, fragility_val: float, bumpiness_val: float) -> InferenceExplanation:
+    # General-purpose trace: unlike explain_worked_example (which only ever reports the
+    # moderate/rough rules for its fixed illustration inputs), this evaluates all 9 rules
+    # against arbitrary inputs and reports whichever actually fired.
+    frag_memberships = {
+        term: float(fuzz.interp_membership(FRAGILITY_UNIVERSE, fragility_mf(term), fragility_val))
+        for term in FRAGILITY_MFS
+    }
+    bump_memberships = {
+        term: float(fuzz.interp_membership(BUMPINESS_UNIVERSE, bumpiness_mf(term), bumpiness_val))
+        for term in BUMPINESS_MFS
+    }
+
+    fired_rules = []
+    for idx, (frag_term, bump_term, speed_term) in enumerate(RULES, start=1):
+        strength = min(frag_memberships[frag_term], bump_memberships[bump_term])
+        if strength > 0.0:
+            fired_rules.append(FiredRule(idx, frag_term, bump_term, speed_term, strength))
+
+    crisp_speed = controller.get_safe_speed(fragility_val, bumpiness_val)
+
+    return InferenceExplanation(
+        fragility_val=fragility_val,
+        bumpiness_val=bumpiness_val,
+        fragility_memberships=frag_memberships,
+        bumpiness_memberships=bump_memberships,
+        fired_rules=fired_rules,
+        crisp_speed=crisp_speed,
     )

@@ -1,4 +1,3 @@
-import random
 import sys
 import time
 import warnings
@@ -16,6 +15,7 @@ from app.fuzzy.explainability import explain_worked_example
 from app.models.cargo import CargoProfile
 from app.models.network import RoadNetwork
 from app.routing.heuristics import haversine_time_heuristic
+from app.routing.planning import sample_constrained_edges
 from app.services.routing_service import RoutingService
 from scripts.plotting import (
     path_label,
@@ -124,8 +124,7 @@ def _run_integration_comparison(network: RoadNetwork, service: RoutingService, s
     print("INTEGRATION AND COMPARISON")
     print("=" * 65)
     all_edges = network.get_all_edges()
-    random.seed(settings.constraint_seed)
-    constrained_edges = set(random.sample(all_edges, round(settings.constraint_fraction * len(all_edges))))
+    constrained_edges = sample_constrained_edges(network, settings.constraint_fraction, settings.constraint_seed)
 
     print(f"  Route  : {network.nodes[settings.start_node].name} -> {network.nodes[settings.goal_node].name}")
     print(

@@ -5,3 +5,5 @@ scipy>=1.7.0
 networkx>=2.6.0
 scikit-fuzzy>=0.4.2
 pydantic-settings>=2.0.0
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0
